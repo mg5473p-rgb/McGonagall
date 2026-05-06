@@ -164,4 +164,4 @@ async def on_ready():
 # =====================
 # 起動
 # =====================
-bot.run("discordtoken")
+bot.run("DISCORD_TOKEN")
