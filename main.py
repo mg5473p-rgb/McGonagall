@@ -164,4 +164,5 @@ async def on_ready():
 # =====================
 # 起動
 # =====================
-bot.run("DISCORD_TOKEN")
+import os
+bot.run(os.getenv("DISCORD_TOKEN"))
