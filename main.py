@@ -27,16 +27,19 @@ INTRO_CHANNEL_ID = 1492739600253456414
 DATA_FILE = "mcgonagall.json"
 
 def load_data():
+
     if not os.path.exists(DATA_FILE):
         return {}
 
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
+
     except json.JSONDecodeError:
         return {}
 
 def save_data(data):
+
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -79,6 +82,7 @@ def get_progress(uid):
 def check_house(member):
 
     for role in member.roles:
+
         if role.name in HOUSE_MESSAGES:
             return HOUSE_MESSAGES[role.name]
 
@@ -88,7 +92,7 @@ def check_house(member):
     )
 
 # =====================
-# ステップ表示
+# ステップ送信
 # =====================
 async def send_step(interaction, step):
 
@@ -103,18 +107,10 @@ async def send_step(interaction, step):
 
     state = user_state[uid]
 
-    # Step 0
-    if step == 0:
-
-        await interaction.response.send_message(
-            "ようこそ、ホグワーツへ。\n"
-            "あなたはホグワーツの新入生で間違いないですね？",
-            view=NextButton(1),
-            ephemeral=True
-        )
-
+    # =====================
     # Step 1
-    elif step == 1:
+    # =====================
+    if step == 1:
 
         await interaction.response.edit_message(
             content=(
@@ -123,11 +119,14 @@ async def send_step(interaction, step):
             view=NextButton(2)
         )
 
+    # =====================
     # Step 2
+    # =====================
     elif step == 2:
 
-        state["health"] = True
-        save_data(user_state)
+        if not state["health"]:
+            state["health"] = True
+            save_data(user_state)
 
         await interaction.response.edit_message(
             content=(
@@ -139,11 +138,14 @@ async def send_step(interaction, step):
             view=NextButton(3)
         )
 
+    # =====================
     # Step 3
+    # =====================
     elif step == 3:
 
-        state["sorting"] = True
-        save_data(user_state)
+        if not state["sorting"]:
+            state["sorting"] = True
+            save_data(user_state)
 
         msg = check_house(interaction.user)
 
@@ -157,11 +159,14 @@ async def send_step(interaction, step):
             view=NextButton(4)
         )
 
+    # =====================
     # Step 4
+    # =====================
     elif step == 4:
 
-        state["intro"] = True
-        save_data(user_state)
+        if not state["intro"]:
+            state["intro"] = True
+            save_data(user_state)
 
         await interaction.response.edit_message(
             content=(
@@ -179,6 +184,7 @@ async def send_step(interaction, step):
 class NextButton(discord.ui.View):
 
     def __init__(self, next_step):
+
         super().__init__(timeout=None)
         self.next_step = next_step
 
@@ -195,7 +201,7 @@ class NextButton(discord.ui.View):
         await send_step(interaction, self.next_step)
 
 # =====================
-# progressコマンド
+# progress コマンド
 # =====================
 @bot.command()
 async def progress(ctx):
@@ -205,7 +211,7 @@ async def progress(ctx):
     await ctx.send(get_progress(uid))
 
 # =====================
-# 起動
+# 起動時
 # =====================
 @bot.event
 async def on_ready():
@@ -218,20 +224,33 @@ async def on_ready():
     bot.add_view(NextButton(3))
     bot.add_view(NextButton(4))
 
-    channel = bot.get_channel(GUIDE_CHANNEL_ID)
+    try:
 
-    if channel:
+        # チャンネル取得
+        channel = await bot.fetch_channel(GUIDE_CHANNEL_ID)
 
+        # 既に案内があるか確認
         async for msg in channel.history(limit=20):
-            if msg.author == bot.user:
+
+            if (
+                msg.author == bot.user
+                and "ホグワーツ" in msg.content
+            ):
                 print("既に案内メッセージがあります")
                 return
 
+        # 初期メッセージ送信
         await channel.send(
             "ようこそ、ホグワーツへ。\n"
             "あなたはホグワーツの新入生で間違いないですね？",
             view=NextButton(1)
         )
+
+        print("案内メッセージ送信完了")
+
+    except Exception as e:
+
+        print(f"エラー: {e}")
 
 # =====================
 # 起動
