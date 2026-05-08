@@ -9,6 +9,7 @@ import os
 intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -28,8 +29,12 @@ DATA_FILE = "mcgonagall.json"
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {}
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {}
 
 def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -38,131 +43,197 @@ def save_data(data):
 user_state = load_data()
 
 # =====================
+# 寮メッセージ
+# =====================
+HOUSE_MESSAGES = {
+    "グリフィンドール": "勇敢な判断ですね。よくぞその寮を選びました。",
+    "スリザリン": "慎重で、目的意識のある選択です。結構です。",
+    "レイブンクロー": "よく考えられた選択ですね。知性が感じられます。",
+    "ハッフルパフ": "誠実で落ち着いた選択ですね。安心しました。"
+}
+
+# =====================
 # 進捗表示
 # =====================
 def get_progress(uid):
-    state = user_state.get(uid, {"health": False, "sorting": False, "intro": False})
+
+    state = user_state.get(
+        uid,
+        {
+            "health": False,
+            "sorting": False,
+            "intro": False
+        }
+    )
 
     return (
-        "現在の進行状況です\n\n"
+        "📖 現在の進行状況です\n\n"
         f"🏥 健康診断：{'✔' if state['health'] else '未完了'}\n"
         f"🎩 組み分け：{'✔' if state['sorting'] else '未完了'}\n"
         f"🪶 自己紹介：{'✔' if state['intro'] else '未完了'}"
     )
 
 # =====================
-# 寮判定
+# 寮確認
 # =====================
 def check_house(member):
-    roles = [r.name for r in member.roles]
 
-    if "グリフィンドール" in roles:
-        return "勇敢な判断ですね。よくぞその寮を選びました。"
-    elif "スリザリン" in roles:
-        return "慎重で、目的意識のある選択です。結構です。"
-    elif "レイブンクロー" in roles:
-        return "よく考えられた選択ですね。知性が感じられます。"
-    elif "ハッフルパフ" in roles:
-        return "誠実で落ち着いた選択ですね。安心しました。"
-    else:
-        return "まだ組み分けが済んでいないようですね。\n後でちゃんと組み分け帽子のところへ行くのですよ。"
+    for role in member.roles:
+        if role.name in HOUSE_MESSAGES:
+            return HOUSE_MESSAGES[role.name]
+
+    return (
+        "まだ組み分けが済んでいないようですね。\n"
+        "後でちゃんと組み分け帽子のところへ行くのですよ。"
+    )
 
 # =====================
-# ボタンビュー
+# ステップ表示
 # =====================
-class NextButton(discord.ui.View):
-    def __init__(self, step):
-        super().__init__(timeout=None)
-        self.step = step
+async def send_step(interaction, step):
 
-    @discord.ui.button(label="はい", style=discord.ButtonStyle.success)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+    uid = str(interaction.user.id)
 
-        uid = str(interaction.user.id)
+    if uid not in user_state:
+        user_state[uid] = {
+            "health": False,
+            "sorting": False,
+            "intro": False
+        }
 
-        if uid not in user_state:
-            user_state[uid] = {"health": False, "sorting": False, "intro": False}
+    state = user_state[uid]
 
-        state = user_state[uid]
+    # Step 0
+    if step == 0:
 
-        # =====================
-        # Step分岐
-        # =====================
+        await interaction.response.send_message(
+            "ようこそ、ホグワーツへ。\n"
+            "あなたはホグワーツの新入生で間違いないですね？",
+            view=NextButton(1),
+            ephemeral=True
+        )
 
-        # 0 → 健康診断
-        if self.step == 0:
-            await interaction.response.send_message(
-                f"よろしいです。\n\n🏥 健康診断はこちら\n<#{HEALTH_CHANNEL_ID}>",
-                ephemeral=True
-            )
-            state["health"] = True
+    # Step 1
+    elif step == 1:
 
-        # 1 → 組み分け
-        elif self.step == 1:
-            msg = check_house(interaction.user)
+        await interaction.response.edit_message(
+            content=(
+                "🏥 健康診断（ロール付与）はお済みですか？"
+            ),
+            view=NextButton(2)
+        )
 
-            await interaction.response.send_message(
-                f"{msg}\n\n🎩 組み分けはこちら\n<#{SORT_CHANNEL_ID}>",
-                ephemeral=True
-            )
-            state["sorting"] = True
+    # Step 2
+    elif step == 2:
 
-        # 2 → 自己紹介
-        elif self.step == 2:
-            await interaction.response.send_message(
-                f"よろしい。\n\n🪶 自己紹介はこちら\n<#{INTRO_CHANNEL_ID}>",
-                ephemeral=True
-            )
-            state["intro"] = True
-
-        # 3 → 完了
-        elif self.step == 3:
-            await interaction.response.send_message(
-                "あなたはとても優秀です。",
-                ephemeral=True
-            )
-
+        state["health"] = True
         save_data(user_state)
 
+        await interaction.response.edit_message(
+            content=(
+                f"よろしいです。\n\n"
+                f"🏥 健康診断はこちら\n"
+                f"<#{HEALTH_CHANNEL_ID}>\n\n"
+                f"🎩 組み分けはお済みですか？"
+            ),
+            view=NextButton(3)
+        )
+
+    # Step 3
+    elif step == 3:
+
+        state["sorting"] = True
+        save_data(user_state)
+
+        msg = check_house(interaction.user)
+
+        await interaction.response.edit_message(
+            content=(
+                f"{msg}\n\n"
+                f"🎩 組み分けはこちら\n"
+                f"<#{SORT_CHANNEL_ID}>\n\n"
+                f"🪶 自己紹介はお済みですか？"
+            ),
+            view=NextButton(4)
+        )
+
+    # Step 4
+    elif step == 4:
+
+        state["intro"] = True
+        save_data(user_state)
+
+        await interaction.response.edit_message(
+            content=(
+                f"よろしい。\n\n"
+                f"🪶 自己紹介はこちら\n"
+                f"<#{INTRO_CHANNEL_ID}>\n\n"
+                f"あなたはとても優秀です。"
+            ),
+            view=None
+        )
+
 # =====================
-# メイン案内
+# ボタン
 # =====================
-async def send_guide(channel):
+class NextButton(discord.ui.View):
 
-    await channel.send(
-        "ようこそ、ホグワーツへ。\n"
-        "あなたはホグワーツの新入生で間違いないですね？",
-        view=NextButton(0)
-    )
+    def __init__(self, next_step):
+        super().__init__(timeout=None)
+        self.next_step = next_step
 
-    await channel.send(
-        "🏥 健康診断（ロール付与）はお済みですか？",
-        view=NextButton(1)
+    @discord.ui.button(
+        label="はい",
+        style=discord.ButtonStyle.success
     )
+    async def next_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
 
-    await channel.send(
-        "🎩 組み分けはお済みですか？",
-        view=NextButton(2)
-    )
+        await send_step(interaction, self.next_step)
 
-    await channel.send(
-        "🪶 自己紹介はお済みですか？",
-        view=NextButton(3)
-    )
+# =====================
+# progressコマンド
+# =====================
+@bot.command()
+async def progress(ctx):
+
+    uid = str(ctx.author.id)
+
+    await ctx.send(get_progress(uid))
 
 # =====================
 # 起動
 # =====================
 @bot.event
 async def on_ready():
-    print("Bot起動")
+
+    print(f"{bot.user} として起動")
+
+    # Persistent View
+    bot.add_view(NextButton(1))
+    bot.add_view(NextButton(2))
+    bot.add_view(NextButton(3))
+    bot.add_view(NextButton(4))
 
     channel = bot.get_channel(GUIDE_CHANNEL_ID)
+
     if channel:
-        await send_guide(channel)
+
+        async for msg in channel.history(limit=20):
+            if msg.author == bot.user:
+                print("既に案内メッセージがあります")
+                return
+
+        await channel.send(
+            "ようこそ、ホグワーツへ。\n"
+            "あなたはホグワーツの新入生で間違いないですね？",
+            view=NextButton(1)
+        )
 
 # =====================
 # 起動
 # =====================
-import os
 bot.run(os.getenv("DISCORD_TOKEN"))
