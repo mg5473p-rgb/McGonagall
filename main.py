@@ -109,6 +109,7 @@ async def send_step(interaction, step):
     uid = str(interaction.user.id)
 
     if uid not in user_state:
+
         user_state[uid] = {
             "health": False,
             "sorting": False,
@@ -122,7 +123,7 @@ async def send_step(interaction, step):
     # =====================
     if step == 1:
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "🏥 健康診断（ロール付与）はお済みですか？",
             view=NextButton(2),
             ephemeral=True
@@ -136,7 +137,7 @@ async def send_step(interaction, step):
         state["health"] = True
         save_data(user_state)
 
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             content=(
                 f"よろしいです。\n\n"
                 f"🏥 健康診断はこちら\n"
@@ -156,7 +157,7 @@ async def send_step(interaction, step):
 
         msg = check_house(interaction.user)
 
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             content=(
                 f"よろしい。\n\n"
                 f"{msg}\n\n"
@@ -175,7 +176,7 @@ async def send_step(interaction, step):
         state["intro"] = True
         save_data(user_state)
 
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             content=(
                 f"よろしい。\n\n"
                 f"🪶 自己紹介はこちら\n"
@@ -213,9 +214,16 @@ class NextButton(discord.ui.View):
 
         try:
 
+            # Interaction延命
+            await interaction.response.defer(ephemeral=True)
+
             await send_step(interaction, self.next_step)
 
         except Exception as e:
+
+            # Unknown interaction は無視
+            if "Unknown interaction" in str(e):
+                return
 
             error_message = (
                 f"ボタン処理中にエラーが発生しました。\n\n"
@@ -231,13 +239,16 @@ class NextButton(discord.ui.View):
                 error_message
             )
 
-            if not interaction.response.is_done():
+            try:
 
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "⚠️ エラーが発生しました。\n"
                     "管理者へ通知しています。",
                     ephemeral=True
                 )
+
+            except:
+                pass
 
 # =====================
 # progress コマンド
