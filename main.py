@@ -87,27 +87,6 @@ HOUSE_MESSAGES = {
 }
 
 # =====================
-# 進捗表示
-# =====================
-def get_progress(uid):
-
-    state = user_state.get(
-        uid,
-        {
-            "health": False,
-            "sorting": False,
-            "intro": False
-        }
-    )
-
-    return (
-        "📖 現在の進行状況です\n\n"
-        f"🏥 健康診断：{'✔' if state['health'] else '未完了'}\n"
-        f"🎩 組み分け：{'✔' if state['sorting'] else '未完了'}\n"
-        f"🪶 自己紹介：{'✔' if state['intro'] else '未完了'}"
-    )
-
-# =====================
 # 寮確認
 # =====================
 def check_house(member):
@@ -143,11 +122,10 @@ async def send_step(interaction, step):
     # =====================
     if step == 1:
 
-        await interaction.response.edit_message(
-            content=(
-                "🏥 健康診断（ロール付与）はお済みですか？"
-            ),
-            view=NextButton(2)
+        await interaction.response.send_message(
+            "🏥 健康診断（ロール付与）はお済みですか？",
+            view=NextButton(2),
+            ephemeral=True
         )
 
     # =====================
@@ -155,9 +133,8 @@ async def send_step(interaction, step):
     # =====================
     elif step == 2:
 
-        if not state["health"]:
-            state["health"] = True
-            save_data(user_state)
+        state["health"] = True
+        save_data(user_state)
 
         await interaction.response.edit_message(
             content=(
@@ -174,14 +151,14 @@ async def send_step(interaction, step):
     # =====================
     elif step == 3:
 
-        if not state["sorting"]:
-            state["sorting"] = True
-            save_data(user_state)
+        state["sorting"] = True
+        save_data(user_state)
 
         msg = check_house(interaction.user)
 
         await interaction.response.edit_message(
             content=(
+                f"よろしい。\n\n"
                 f"{msg}\n\n"
                 f"🎩 組み分けはこちら\n"
                 f"<#{SORT_CHANNEL_ID}>\n\n"
@@ -195,9 +172,8 @@ async def send_step(interaction, step):
     # =====================
     elif step == 4:
 
-        if not state["intro"]:
-            state["intro"] = True
-            save_data(user_state)
+        state["intro"] = True
+        save_data(user_state)
 
         await interaction.response.edit_message(
             content=(
@@ -271,7 +247,21 @@ async def progress(ctx):
 
     uid = str(ctx.author.id)
 
-    await ctx.send(get_progress(uid))
+    state = user_state.get(
+        uid,
+        {
+            "health": False,
+            "sorting": False,
+            "intro": False
+        }
+    )
+
+    await ctx.send(
+        "📖 現在の進行状況です\n\n"
+        f"🏥 健康診断：{'✔' if state['health'] else '未完了'}\n"
+        f"🎩 組み分け：{'✔' if state['sorting'] else '未完了'}\n"
+        f"🪶 自己紹介：{'✔' if state['intro'] else '未完了'}"
+    )
 
 # =====================
 # コマンドエラー
@@ -309,27 +299,13 @@ async def on_ready():
         bot.add_view(NextButton(3))
         bot.add_view(NextButton(4))
 
-        # 接続サーバー確認
-        print("===== 接続サーバー =====")
-
-        for guild in bot.guilds:
-
-            print(f"サーバー名: {guild.name}")
-
-            for channel in guild.text_channels:
-                print(f"チャンネル: {channel.name} | ID: {channel.id}")
-
-        print("=======================")
-
         # チャンネル取得
         channel = await bot.fetch_channel(GUIDE_CHANNEL_ID)
-
-        print("チャンネル取得成功")
 
         # 初期メッセージ送信
         await channel.send(
             "ようこそ、ホグワーツへ。\n"
-            "あなたはホグワーツの新入生で間違いないですね？",
+            "あなたはホグワーツ新入生で間違いないですね？",
             view=NextButton(1)
         )
 
