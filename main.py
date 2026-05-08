@@ -21,6 +21,9 @@ HEALTH_CHANNEL_ID = 1492747771206176840
 SORT_CHANNEL_ID = 1500520708974051498
 INTRO_CHANNEL_ID = 1492739600253456414
 
+# 管理チャンネル
+ADMIN_CHANNEL_ID = 1491010789560029244
+
 # =====================
 # データ保存
 # =====================
@@ -32,6 +35,7 @@ def load_data():
         return {}
 
     try:
+
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
 
@@ -40,10 +44,37 @@ def load_data():
 
 def save_data(data):
 
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    except Exception as e:
+
+        print(f"JSON保存エラー: {e}")
 
 user_state = load_data()
+
+# =====================
+# エラー通知
+# =====================
+async def send_error(title, description):
+
+    try:
+
+        channel = await bot.fetch_channel(ADMIN_CHANNEL_ID)
+
+        embed = discord.Embed(
+            title=f"⚠️ {title}",
+            description=description,
+            color=discord.Color.red()
+        )
+
+        await channel.send(embed=embed)
+
+    except Exception as e:
+
+        print(f"管理チャンネル通知失敗: {e}")
 
 # =====================
 # 寮メッセージ
@@ -198,7 +229,33 @@ class NextButton(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        await send_step(interaction, self.next_step)
+        try:
+
+            await send_step(interaction, self.next_step)
+
+        except Exception as e:
+
+            error_message = (
+                f"ボタン処理中にエラーが発生しました。\n\n"
+                f"ユーザー: {interaction.user}\n"
+                f"ステップ: {self.next_step}\n\n"
+                f"エラー内容:\n{e}"
+            )
+
+            print(error_message)
+
+            await send_error(
+                "ボタン処理エラー",
+                error_message
+            )
+
+            if not interaction.response.is_done():
+
+                await interaction.response.send_message(
+                    "⚠️ エラーが発生しました。\n"
+                    "管理者へ通知しています。",
+                    ephemeral=True
+                )
 
 # =====================
 # progress コマンド
@@ -211,6 +268,26 @@ async def progress(ctx):
     await ctx.send(get_progress(uid))
 
 # =====================
+# コマンドエラー
+# =====================
+@bot.event
+async def on_command_error(ctx, error):
+
+    error_message = (
+        f"コマンドエラーが発生しました。\n\n"
+        f"ユーザー: {ctx.author}\n"
+        f"コマンド: {ctx.message.content}\n\n"
+        f"エラー内容:\n{error}"
+    )
+
+    print(error_message)
+
+    await send_error(
+        "コマンドエラー",
+        error_message
+    )
+
+# =====================
 # 起動時
 # =====================
 @bot.event
@@ -218,26 +295,30 @@ async def on_ready():
 
     print(f"{bot.user} として起動")
 
-    # Persistent View
-    bot.add_view(NextButton(1))
-    bot.add_view(NextButton(2))
-    bot.add_view(NextButton(3))
-    bot.add_view(NextButton(4))
-
     try:
+
+        # Persistent View
+        bot.add_view(NextButton(1))
+        bot.add_view(NextButton(2))
+        bot.add_view(NextButton(3))
+        bot.add_view(NextButton(4))
+
+        # サーバー情報表示
+        print("===== 接続サーバー =====")
+
+        for guild in bot.guilds:
+
+            print(f"サーバー名: {guild.name}")
+
+            for channel in guild.text_channels:
+                print(f"チャンネル: {channel.name} | ID: {channel.id}")
+
+        print("=======================")
 
         # チャンネル取得
         channel = await bot.fetch_channel(GUIDE_CHANNEL_ID)
 
-        # 既に案内があるか確認
-        async for msg in channel.history(limit=20):
-
-            if (
-                msg.author == bot.user
-                and "ホグワーツ" in msg.content
-            ):
-                print("既に案内メッセージがあります")
-                return
+        print("チャンネル取得成功")
 
         # 初期メッセージ送信
         await channel.send(
@@ -246,11 +327,45 @@ async def on_ready():
             view=NextButton(1)
         )
 
-        print("案内メッセージ送信完了")
+        print("案内メッセージ送信成功")
+
+        # 起動通知
+        await send_error(
+            "Bot起動",
+            "マクゴナガルBotが正常に起動しました。"
+        )
 
     except Exception as e:
 
-        print(f"エラー: {e}")
+        error_message = (
+            f"初期メッセージ送信に失敗しました。\n\n"
+            f"エラー内容:\n{e}"
+        )
+
+        print(error_message)
+
+        await send_error(
+            "初期メッセージ送信エラー",
+            error_message
+        )
+
+# =====================
+# Discord APIエラー
+# =====================
+@bot.event
+async def on_error(event, *args, **kwargs):
+
+    error_message = (
+        f"Discordイベントエラーが発生しました。\n\n"
+        f"イベント名: {event}"
+    )
+
+    print(error_message)
+
+    await send_error(
+        "Discordイベントエラー",
+        error_message
+    )
 
 # =====================
 # 起動
