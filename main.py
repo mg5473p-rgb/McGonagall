@@ -217,16 +217,22 @@ class NextButton(discord.ui.View):
     def __init__(self, next_step):
 
         super().__init__(timeout=None)
+
         self.next_step = next_step
 
-    @discord.ui.button(
-        label="はい",
-        style=discord.ButtonStyle.success
-    )
+        button = discord.ui.Button(
+            label="はい",
+            style=discord.ButtonStyle.success,
+            custom_id=f"next_button_{next_step}"
+        )
+
+        button.callback = self.next_button
+
+        self.add_item(button)
+
     async def next_button(
         self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
+        interaction: discord.Interaction
     ):
 
         try:
@@ -303,7 +309,7 @@ async def on_ready():
         bot.add_view(NextButton(3))
         bot.add_view(NextButton(4))
 
-        # サーバー情報表示
+        # 接続サーバー確認
         print("===== 接続サーバー =====")
 
         for guild in bot.guilds:
@@ -350,7 +356,7 @@ async def on_ready():
         )
 
 # =====================
-# Discord APIエラー
+# Discordイベントエラー
 # =====================
 @bot.event
 async def on_error(event, *args, **kwargs):
